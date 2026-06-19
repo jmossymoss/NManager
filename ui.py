@@ -23,7 +23,8 @@ class NM_UL_tabs(bpy.types.UIList):
                  icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
         sub = row.row(align=True)
         sub.active = not item.hidden
-        sub.label(text=item.name or item.home)
+        sub.label(text=item.name or item.home,
+                  icon=item.icon if item.icon and item.icon != 'NONE' else 'NONE')
         row.prop_search(item, "group", prefs, "groups", text="",
                         icon='OUTLINER_COLLECTION')
         row.label(text="",
