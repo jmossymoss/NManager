@@ -13,11 +13,11 @@ def _has_active_tab(context):
     return 0 <= prefs.active < len(prefs.tabs)
 
 
-def _apply_and_save(context):
+def _apply_and_save(context, reorder=False):
     prefs = model.get_prefs(context)
     model.sync_collection(prefs.tabs)
     model.clamp_active(prefs)
-    engine.apply(model.entries_to_list(prefs.tabs))
+    engine.apply(model.entries_to_list(prefs.tabs), reorder=reorder)
     store.save(model.serialize(prefs))
 
 
@@ -84,7 +84,7 @@ class NM_OT_move(Operator):
             j = visible[npos]
             coll.move(i, j)
             prefs.active = j
-            _apply_and_save(context)
+            _apply_and_save(context, reorder=True)
         return {'FINISHED'}
 
 
@@ -283,6 +283,6 @@ class NM_OT_import(Operator, ImportHelper):
             self.report({'ERROR'}, f"Import failed: {e}")
             return {'CANCELLED'}
         model.deserialize(prefs, data)
-        _apply_and_save(context)
+        _apply_and_save(context, reorder=True)
         engine.set_active_group(prefs.active_group)
         return {'FINISHED'}

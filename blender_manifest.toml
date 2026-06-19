@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "nmanager"
-version = "0.4.0"
+version = "0.5.0"
 name = "NManager"
 tagline = "Rename, reorder, hide and group N-panel tabs"
 maintainer = "Jordan Moss"

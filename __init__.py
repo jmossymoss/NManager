@@ -32,7 +32,12 @@ classes = (
 )
 
 
+_enabled = False
+
+
 def _startup():
+    if not _enabled:
+        return None                       # add-on was disabled before timer fired
     try:
         prefs = model.get_prefs()
         data = store.load()
@@ -40,7 +45,7 @@ def _startup():
             model.deserialize(prefs, data)
         model.sync_collection(prefs.tabs)
         model.clamp_active(prefs)
-        engine.apply(model.entries_to_list(prefs.tabs))
+        engine.apply(model.entries_to_list(prefs.tabs))   # reorder=False: safe
         engine.set_active_group(prefs.active_group)
     except Exception as e:
         print(f"[NManager] startup: {e}")
@@ -48,6 +53,8 @@ def _startup():
 
 
 def register():
+    global _enabled
+    _enabled = True
     for c in classes:
         bpy.utils.register_class(c)
     bpy.types.VIEW3D_HT_header.append(ui.draw_header)
@@ -55,6 +62,13 @@ def register():
 
 
 def unregister():
+    global _enabled
+    _enabled = False
+    try:
+        if bpy.app.timers.is_registered(_startup):
+            bpy.app.timers.unregister(_startup)
+    except Exception:
+        pass
     try:
         bpy.types.VIEW3D_HT_header.remove(ui.draw_header)
     except Exception:
