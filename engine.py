@@ -1,22 +1,22 @@
 """Core engine.
 
-Safety model (this file was the cause of hard crashes; these properties matter):
+THE KEY FACT this design is built around:
+    Blender decides whether a panel has a poll at REGISTRATION time. A panel
+    that defined no poll when registered has its internal poll pointer set to
+    NULL, and Blender then never calls poll for it -- it always shows.
+    Re-assigning `cls.poll` afterwards does nothing for those panels.
 
-  * The poll wrapper is IDEMPOTENT and SELF-TAGGING. It can never wrap itself,
-    so re-enabling the add-on cannot stack wrappers into infinite recursion.
-    Every wrapper body is also exception-guarded (fail open / show the panel).
+    => To hide/group a poll-less panel we must RE-REGISTER it with the wrapper
+       already installed, so Blender starts calling the wrapper. Panels that
+       already had a poll are picked up dynamically and need no re-register.
 
-  * NManager is INERT until configured. `apply` only re-registers panels whose
-    category actually changes (renames), and only wraps polls for panels that
-    are actually hidden, grouped, or hidden by an active group. A fresh/empty
-    layout touches nothing.
-
-  * The dangerous global reorder (re-registering every panel to change the tab
-    strip order) is opt-in via `reorder=True`, so it only runs on a deliberate
-    user action -- never at enable/startup.
-
-  * Re-registration is sub-panel safe: panels are ordered parent-before-child
-    by walking bl_parent_id chains, so nested sub-panels don't get orphaned.
+Safety properties retained:
+  * Wrapper is idempotent, self-tagging, exception-guarded (never recurses,
+    never crashes the draw).
+  * NManager is inert until you actually use filtering. A fresh/empty layout
+    touches nothing.
+  * The one-time re-registration (when filtering is first used) is sub-panel
+    safe (parent-before-child) and fully defensive (read-only types skipped).
 """
 
 import bpy
@@ -26,19 +26,48 @@ REGION = 'UI'
 PROTECTED = {"Tool", "Item"}
 HOME_ATTR = "_nm_home"
 ORIG_ATTR = "_nm_orig_poll"
-WRAP_TAG = "_nm_is_wrapper"
 
-_hidden = set()        # home categories hidden outright
-_group_of = {}         # home -> group name
-_active_group = ""     # "" == show all
+_hidden = set()         # home categories hidden outright
+_group_of = {}          # home -> group name
+_active_group = ""      # "" == show all
+_wrapped = set()        # classes whose poll we've wrapped
+_dispatched = set()     # homes re-registered so the wrapper is actually called
 
 
 # --- enumeration ----------------------------------------------------------
 
+def _gather_panel_classes():
+    classes = []
+    seen = set()
+    stack = list(bpy.types.Panel.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        stack.extend(cls.__subclasses__())
+        classes.append(cls)
+    panel_base = bpy.types.Panel
+    for name in dir(bpy.types):
+        try:
+            cls = getattr(bpy.types, name)
+        except Exception:
+            continue
+        if cls in seen:
+            continue
+        try:
+            if isinstance(cls, type) and issubclass(cls, panel_base):
+                seen.add(cls)
+                classes.append(cls)
+        except Exception:
+            continue
+    return classes
+
+
 def iter_sidebar_panels():
-    for cls in bpy.types.Panel.__subclasses__():
+    for cls in _gather_panel_classes():
         if cls.__name__.startswith("NM_"):
-            continue                      # never manage our own UI
+            continue
         if (getattr(cls, "bl_space_type", None) == SPACE
                 and getattr(cls, "bl_region_type", None) == REGION
                 and getattr(cls, "bl_category", "")):
@@ -83,7 +112,6 @@ def _idname(cls):
 
 
 def _subtree_sorted(cls_list):
-    """Parents before children, by walking bl_parent_id within this set."""
     by_id = {_idname(c): c for c in cls_list}
 
     def depth(c):
@@ -97,20 +125,54 @@ def _subtree_sorted(cls_list):
     return sorted(cls_list, key=lambda c: (depth(c), getattr(c, "bl_order", 0)))
 
 
+def _all_ui_panels():
+    for cls in _gather_panel_classes():
+        if cls.__name__.startswith("NM_"):
+            continue
+        if (getattr(cls, "bl_space_type", None) == SPACE
+                and getattr(cls, "bl_region_type", None) == REGION):
+            yield cls                     # include children (no bl_category)
+
+
+def _with_descendants(cls_list):
+    """cls_list plus every sub-panel descending from them. Re-registering a
+    parent without its children orphans the children, which then render as
+    loose panels in the viewport -- so the whole subtree moves together."""
+    children_of = {}
+    for c in _all_ui_panels():
+        pid = getattr(c, "bl_parent_id", "")
+        if pid:
+            children_of.setdefault(pid, []).append(c)
+    result, seen, stack = [], set(), list(cls_list)
+    while stack:
+        c = stack.pop()
+        if c in seen:
+            continue
+        seen.add(c)
+        result.append(c)
+        stack.extend(children_of.get(_idname(c), []))
+    return result
+
+
 def _reregister(cls_list, category):
-    ordered = _subtree_sorted(cls_list)
-    for c in reversed(ordered):          # children first
+    recat = set(cls_list)                 # ONLY these get the new category
+    ordered = _subtree_sorted(_with_descendants(cls_list))
+    for c in reversed(ordered):           # children first
         _unregister(c)
-    for c in ordered:                    # parents first
-        c.bl_category = category
+    for c in ordered:                     # parents first
+        if c in recat:                    # never set a category on a child
+            try:
+                c.bl_category = category
+            except Exception as e:
+                print(f"[NManager] cannot set category on {c.__name__}: {e}")
         _register(c)
 
 
-# --- poll wrapper (idempotent, recursion-proof, exception-safe) ----------
+# --- poll wrapper ---------------------------------------------------------
 
 def _is_wrapper(poll_attr):
     fn = getattr(poll_attr, "__func__", poll_attr)
-    return getattr(fn, WRAP_TAG, False)
+    return getattr(fn, "_nm_is_wrapper", False)
 
 
 def _visible(cls):
@@ -123,10 +185,12 @@ def _visible(cls):
 
 
 def _wrap(cls):
-    existing = cls.__dict__.get("poll", None)
-    if existing is not None and _is_wrapper(existing):
-        return                            # already ours -- never re-wrap
-    setattr(cls, ORIG_ATTR, existing)     # genuine original (classmethod/None)
+    """Install the visibility wrapper. Returns True if this panel had NO poll
+    at registration (so it needs a re-register before Blender will call us)."""
+    own = cls.__dict__.get("poll", None)
+    if own is not None and _is_wrapper(own):
+        return False                      # already ours
+    had_dispatcher = getattr(cls, "poll", None) is not None  # own OR inherited
 
     def poll(c, context):
         try:
@@ -141,37 +205,37 @@ def _wrap(cls):
             return True                   # fail open; never crash the draw
 
     poll._nm_is_wrapper = True
-    cls.poll = classmethod(poll)
+    try:
+        setattr(cls, ORIG_ATTR, own)      # own poll only (None if inherited/none)
+        cls.poll = classmethod(poll)
+        _wrapped.add(cls)
+    except Exception as e:
+        print(f"[NManager] cannot wrap {cls.__name__}: {e}")
+        return False
+    return not had_dispatcher
 
 
 def _unwrap(cls):
     existing = cls.__dict__.get("poll", None)
     if existing is None or not _is_wrapper(existing):
+        _wrapped.discard(cls)
         return
     orig = getattr(cls, ORIG_ATTR, None)
-    if orig is not None:
-        cls.poll = orig
-    else:
+    try:
+        if orig is not None:
+            cls.poll = orig
+        else:
+            try:
+                del cls.poll
+            except Exception:
+                pass
         try:
-            del cls.poll
+            delattr(cls, ORIG_ATTR)
         except Exception:
             pass
-    try:
-        delattr(cls, ORIG_ATTR)
-    except Exception:
-        pass
-
-
-def _apply_wraps():
-    """Wrap only panels that need filtering; unwrap the rest."""
-    group_active = bool(_active_group)
-    for cls in iter_sidebar_panels():
-        home = home_of(cls)
-        need = group_active or (home in _hidden) or (home in _group_of)
-        if need:
-            _wrap(cls)
-        else:
-            _unwrap(cls)
+    except Exception as e:
+        print(f"[NManager] cannot unwrap {cls.__name__}: {e}")
+    _wrapped.discard(cls)
 
 
 def redraw():
@@ -183,68 +247,92 @@ def redraw():
             area.tag_redraw()
 
 
-# --- public: light updates (no re-registration) --------------------------
+def _filtering_active():
+    return bool(_active_group) or bool(_hidden)
+
+
+def _ensure_filtering():
+    """Wrap managed panels and, for any category containing poll-less panels,
+    re-register it ONCE so Blender actually calls the wrapper. Idempotent."""
+    groups = scan()
+    for home, cls_list in groups.items():
+        if home in _dispatched:
+            for c in cls_list:
+                _wrap(c)                  # keep wrappers fresh (cheap, idempotent)
+            continue
+        needs_reregister = False
+        for c in cls_list:
+            if _wrap(c):
+                needs_reregister = True
+        if needs_reregister:
+            _reregister(cls_list, cls_list[0].bl_category)
+        _dispatched.add(home)
+
+
+# --- public: light state changes -----------------------------------------
 
 def set_filters(hidden, group_of):
     global _hidden, _group_of
     _hidden = set(hidden)
     _group_of = dict(group_of)
-    _apply_wraps()
+    if _filtering_active():
+        _ensure_filtering()
     redraw()
 
 
 def set_active_group(name):
     global _active_group
     _active_group = name or ""
-    _apply_wraps()                        # group on/off changes wrap set
+    if _filtering_active():
+        _ensure_filtering()
     redraw()
 
 
-# --- public: apply layout -------------------------------------------------
+# --- public: apply layout (rename / reorder) -----------------------------
 
 def apply(entries, reorder=False):
-    """Rename categories (always, minimal) and optionally reorder the strip.
-
-    reorder=False : only re-register panels whose category actually changes.
-                    Safe; used at startup and for renames/filters.
-    reorder=True  : re-register every panel in the requested order (the risky
-                    path). Only call from a deliberate user action.
-    """
     groups = scan()
     index = {e["home"]: e for e in entries}
-    targets = {home: (index.get(home, {}).get("name") or home)
-               for home in groups}
+    targets = {home: (index.get(home, {}).get("name") or home) for home in groups}
+
+    global _hidden, _group_of
+    _hidden = {e["home"] for e in entries if e.get("hidden")}
+    _group_of = {e["home"]: e["group"] for e in entries if e.get("group")}
+    filtering = _filtering_active()
+
+    if filtering:                         # wrap first so re-registration sticks
+        for cls_list in groups.values():
+            for c in cls_list:
+                _wrap(c)
 
     if reorder:
         ordered = sorted(index.values(), key=lambda e: e.get("order", 0))
         seq = [e["home"] for e in ordered] + [h for h in groups if h not in index]
-        flat = []
         for home in seq:
-            flat.extend((c, targets[home]) for c in _subtree_sorted(groups[home]))
-        for c, _ in reversed(flat):
-            _unregister(c)
-        for c, target in flat:
-            c.bl_category = target
-            _register(c)
+            _reregister(groups[home], targets[home])
+        if filtering:
+            _dispatched.update(groups.keys())
     else:
         for home, cls_list in groups.items():
-            target = targets[home]
-            if any(c.bl_category != target for c in cls_list):
-                _reregister(cls_list, target)
+            if any(c.bl_category != targets[home] for c in cls_list):
+                _reregister(cls_list, targets[home])
+                if filtering:
+                    _dispatched.add(home)
+        if filtering:
+            _ensure_filtering()
 
-    set_filters(
-        {e["home"] for e in entries if e.get("hidden")},
-        {e["home"]: e["group"] for e in entries if e.get("group")},
-    )
+    redraw()
 
 
 def reset():
+    global _hidden, _group_of, _active_group, _dispatched, _wrapped
     groups = scan()
     for cls in iter_sidebar_panels():
         _unwrap(cls)
     for home, cls_list in groups.items():
-        if any(c.bl_category != home for c in cls_list):
+        if home in _dispatched or any(c.bl_category != home for c in cls_list):
             _reregister(cls_list, home)
-    global _hidden, _group_of, _active_group
     _hidden, _group_of, _active_group = set(), {}, ""
+    _dispatched = set()
+    _wrapped = set()
     redraw()

@@ -15,8 +15,6 @@ classes = (
     ui.NM_UL_tabs,
     ui.NM_UL_groups,
     ui.NM_MT_group_menu,
-    ui.NM_PT_panel,
-    ui.NM_PT_groups,
     operators.NM_OT_apply,
     operators.NM_OT_reset,
     operators.NM_OT_move,

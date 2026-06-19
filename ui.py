@@ -1,5 +1,6 @@
-"""UI: AddonPreferences, tab list (group-filterable), groups list,
-settings panels, and the top-right viewport header group switcher."""
+"""UI: AddonPreferences (the full management UI lives here, in a resizable
+window), the list widgets, the shared group menu, and the top-right viewport
+header group switcher. There is intentionally no N-panel tab."""
 
 import bpy
 from bpy.props import (CollectionProperty, IntProperty, StringProperty,
@@ -7,31 +8,7 @@ from bpy.props import (CollectionProperty, IntProperty, StringProperty,
 from . import engine, model
 
 
-class NM_Prefs(bpy.types.AddonPreferences):
-    bl_idname = model.ADDON_ID
-
-    tabs: CollectionProperty(type=model.NM_TabEntry)
-    groups: CollectionProperty(type=model.NM_Group)
-    active: IntProperty()
-    active_group_index: IntProperty()
-    active_group: StringProperty(update=model._on_active_group)
-    filter_to_group: BoolProperty(
-        name="Limit list to active group",
-        description="Show only the active group's tabs and reorder within it",
-        default=True)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.label(text="Manage tabs in the 3D viewport sidebar > NManager.",
-                     icon='INFO')
-        layout.label(text="Switch groups from the top-right of the viewport.",
-                     icon='OUTLINER_COLLECTION')
-        row = layout.row(align=True)
-        row.operator("nm.import", icon='IMPORT')
-        row.operator("nm.export", icon='EXPORT')
-
-
-# --- the tab list ---------------------------------------------------------
+# --- list widgets ---------------------------------------------------------
 
 class NM_UL_tabs(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon,
@@ -42,18 +19,22 @@ class NM_UL_tabs(bpy.types.UIList):
                  icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
         sub = row.row(align=True)
         sub.active = not item.hidden
-        sub.prop(item, "name", text="")
+        # a label (not an editable field) keeps the row click-selectable, so
+        # the active row highlights and the up/down buttons have a target.
+        # Rename is done via the pencil button on the selected row.
+        sub.label(text=item.name or item.home)
         row.prop_search(item, "group", prefs, "groups", text="",
                         icon='OUTLINER_COLLECTION')
-        if item.home in engine.PROTECTED:
-            row.label(text="", icon='LOCKED')
+        # always occupy the trailing slot so the group field / clear button
+        # line up whether or not the row shows a lock
+        row.label(text="",
+                  icon='LOCKED' if item.home in engine.PROTECTED else 'BLANK1')
 
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
         prefs = model.get_prefs(context)
         shown = self.bitflag_filter_item
         flt = [shown] * len(items)
-
         if prefs.filter_to_group and prefs.active_group:
             grp = prefs.active_group
             for i, it in enumerate(items):
@@ -66,8 +47,6 @@ class NM_UL_tabs(bpy.types.UIList):
                     flt[i] = 0
         return flt, []
 
-
-# --- the groups list ------------------------------------------------------
 
 class NM_UL_groups(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon,
@@ -82,7 +61,7 @@ class NM_UL_groups(bpy.types.UIList):
         row.label(text=item.name or "(unnamed)")
 
 
-# --- shared group switcher menu ------------------------------------------
+# --- shared group switcher menu (header + prefs) -------------------------
 
 class NM_MT_group_menu(bpy.types.Menu):
     bl_idname = "NM_MT_group_menu"
@@ -113,68 +92,72 @@ class NM_MT_group_menu(bpy.types.Menu):
             op.name = cur
 
 
-# --- settings panels ------------------------------------------------------
+# --- AddonPreferences: the whole management UI ---------------------------
 
-class NM_PT_panel(bpy.types.Panel):
-    bl_idname = "NM_PT_panel"
-    bl_label = "NManager"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "NManager"
+class NM_Prefs(bpy.types.AddonPreferences):
+    bl_idname = model.ADDON_ID
+
+    tabs: CollectionProperty(type=model.NM_TabEntry)
+    groups: CollectionProperty(type=model.NM_Group)
+    active: IntProperty()
+    active_group_index: IntProperty()
+    active_group: StringProperty(update=model._on_active_group)
+    filter_to_group: BoolProperty(
+        name="Limit list to active group",
+        description="Show only the active group's tabs and reorder within it",
+        default=True)
 
     def draw(self, context):
         layout = self.layout
-        prefs = model.get_prefs(context)
 
         row = layout.row(align=True)
         row.menu("NM_MT_group_menu",
-                 text=prefs.active_group or "All Tabs",
+                 text=self.active_group or "All Tabs",
                  icon='OUTLINER_COLLECTION')
-        sub = layout.row()
-        sub.enabled = bool(prefs.active_group)
-        sub.prop(prefs, "filter_to_group")
-
-        row = layout.row()
-        row.template_list("NM_UL_tabs", "", prefs, "tabs",
-                          prefs, "active", rows=12)
-        col = row.column(align=True)
-        col.operator("nm.move", text="", icon='TRIA_UP').direction = -1
-        col.operator("nm.move", text="", icon='TRIA_DOWN').direction = 1
-        col.separator()
-        col.operator("nm.rename", text="", icon='GREASEPENCIL')
+        r = row.row()
+        r.enabled = bool(self.active_group)
+        r.prop(self, "filter_to_group")
 
         layout.separator()
-        row = layout.row(align=True)
-        row.operator("nm.apply", icon='CHECKMARK')
-        row.operator("nm.reset", icon='LOOP_BACK')
+        split = layout.split(factor=0.62)
 
+        # Tabs
+        col = split.column()
+        col.label(text="Tabs", icon='WINDOW')
+        trow = col.row()
+        trow.template_list("NM_UL_tabs", "", self, "tabs",
+                           self, "active", rows=14)
+        tcol = trow.column(align=True)
+        tcol.operator("nm.move", text="", icon='TRIA_UP').direction = -1
+        tcol.operator("nm.move", text="", icon='TRIA_DOWN').direction = 1
+        tcol.separator()
+        tcol.operator("nm.rename", text="", icon='GREASEPENCIL')
+        brow = col.row(align=True)
+        brow.operator("nm.apply", icon='CHECKMARK')
+        brow.operator("nm.reset", icon='LOOP_BACK')
 
-class NM_PT_groups(bpy.types.Panel):
-    bl_idname = "NM_PT_groups"
-    bl_label = "Groups"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "NManager"
-    bl_parent_id = "NM_PT_panel"
-    bl_options = {'DEFAULT_CLOSED'}
+        # Groups
+        gcol = split.column()
+        gcol.label(text="Groups", icon='OUTLINER_COLLECTION')
+        grow = gcol.row()
+        grow.template_list("NM_UL_groups", "", self, "groups",
+                           self, "active_group_index", rows=14)
+        gccol = grow.column(align=True)
+        gccol.operator("nm.group_move", text="", icon='TRIA_UP').direction = -1
+        gccol.operator("nm.group_move", text="", icon='TRIA_DOWN').direction = 1
+        gccol.separator()
+        gccol.operator("nm.group_rename", text="", icon='GREASEPENCIL')
+        rm = gccol.operator("nm.remove_group", text="", icon='X')
+        idx = self.active_group_index
+        rm.name = self.groups[idx].name if 0 <= idx < len(self.groups) else ""
+        gcol.operator("nm.add_group", text="New Group", icon='ADD')
 
-    def draw(self, context):
-        layout = self.layout
-        prefs = model.get_prefs(context)
-
-        row = layout.row()
-        row.template_list("NM_UL_groups", "", prefs, "groups",
-                          prefs, "active_group_index", rows=5)
-        col = row.column(align=True)
-        col.operator("nm.group_move", text="", icon='TRIA_UP').direction = -1
-        col.operator("nm.group_move", text="", icon='TRIA_DOWN').direction = 1
-        col.separator()
-        col.operator("nm.group_rename", text="", icon='GREASEPENCIL')
-        rm = col.operator("nm.remove_group", text="", icon='X')
-        idx = prefs.active_group_index
-        rm.name = prefs.groups[idx].name if 0 <= idx < len(prefs.groups) else ""
-
-        layout.operator("nm.add_group", text="New Group", icon='ADD')
+        layout.separator()
+        iorow = layout.row(align=True)
+        iorow.operator("nm.import", icon='IMPORT')
+        iorow.operator("nm.export", icon='EXPORT')
+        layout.label(text="Switch the active group from the top-right of the "
+                          "viewport header.", icon='INFO')
 
 
 # --- top-right viewport header switcher -----------------------------------
@@ -184,7 +167,8 @@ def draw_header(self, context):
         return
     prefs = model.get_prefs(context)
     layout = self.layout
+    label = prefs.active_group or "All Tabs"
     layout.separator_spacer()
-    layout.menu("NM_MT_group_menu",
-                text=prefs.active_group or "All Tabs",
-                icon='OUTLINER_COLLECTION')
+    row = layout.row(align=True)
+    row.ui_units_x = min(12.0, max(4.0, len(label) * 0.55 + 2.0))
+    row.menu("NM_MT_group_menu", text=label, icon='OUTLINER_COLLECTION')
