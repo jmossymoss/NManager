@@ -15,18 +15,17 @@ class NM_UL_tabs(bpy.types.UIList):
                   active_data, active_prop, index):
         prefs = data
         row = layout.row(align=True)
+        ic = item.icon if item.icon and item.icon != 'NONE' else 'BLANK1'
+        op = row.operator("nm.pick_icon", text="", icon=ic, emboss=False)
+        op.target = "tab"
+        op.index = index
         row.prop(item, "hidden", text="",
                  icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
         sub = row.row(align=True)
         sub.active = not item.hidden
-        # a label (not an editable field) keeps the row click-selectable, so
-        # the active row highlights and the up/down buttons have a target.
-        # Rename is done via the pencil button on the selected row.
         sub.label(text=item.name or item.home)
         row.prop_search(item, "group", prefs, "groups", text="",
                         icon='OUTLINER_COLLECTION')
-        # always occupy the trailing slot so the group field / clear button
-        # line up whether or not the row shows a lock
         row.label(text="",
                   icon='LOCKED' if item.home in engine.PROTECTED else 'BLANK1')
 
@@ -58,6 +57,10 @@ class NM_UL_groups(bpy.types.UIList):
                           icon='RADIOBUT_ON' if is_active else 'RADIOBUT_OFF',
                           emboss=False)
         op.name = item.name
+        ic = item.icon if item.icon and item.icon != 'NONE' else 'BLANK1'
+        op2 = row.operator("nm.pick_icon", text="", icon=ic, emboss=False)
+        op2.target = "group"
+        op2.index = index
         row.label(text=item.name or "(unnamed)")
 
 
@@ -79,9 +82,12 @@ class NM_MT_group_menu(bpy.types.Menu):
         if len(prefs.groups):
             layout.separator()
         for g in prefs.groups:
+            if g.icon and g.icon != 'NONE':
+                ic = g.icon
+            else:
+                ic = 'CHECKMARK' if cur == g.name else 'BLANK1'
             op = layout.operator("nm.set_active_group",
-                                 text=g.name or "(unnamed)",
-                                 icon='CHECKMARK' if cur == g.name else 'BLANK1')
+                                 text=g.name or "(unnamed)", icon=ic)
             op.name = g.name
 
         layout.separator()
@@ -168,7 +174,10 @@ def draw_header(self, context):
     prefs = model.get_prefs(context)
     layout = self.layout
     label = prefs.active_group or "All Tabs"
+    group_obj = next((g for g in prefs.groups if g.name == prefs.active_group), None)
+    icon = (group_obj.icon if group_obj and group_obj.icon and group_obj.icon != 'NONE'
+            else 'OUTLINER_COLLECTION')
     layout.separator_spacer()
     row = layout.row(align=True)
     row.ui_units_x = min(12.0, max(4.0, len(label) * 0.55 + 2.0))
-    row.menu("NM_MT_group_menu", text=label, icon='OUTLINER_COLLECTION')
+    row.menu("NM_MT_group_menu", text=label, icon=icon)

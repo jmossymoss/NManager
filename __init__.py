@@ -27,6 +27,8 @@ classes = (
     operators.NM_OT_assign_group,
     operators.NM_OT_export,
     operators.NM_OT_import,
+    operators.NM_OT_pick_icon,
+    operators.NM_OT_set_icon,
 )
 
 

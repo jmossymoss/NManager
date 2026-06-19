@@ -8,6 +8,25 @@ from bpy_extras.io_utils import ExportHelper, ImportHelper
 from . import engine, model, store
 
 
+AVAILABLE_ICONS = (
+    'NONE',
+    # mesh primitives
+    'MESH_CUBE', 'MESH_UVSPHERE', 'MESH_ICOSPHERE', 'MESH_CIRCLE',
+    'MESH_CYLINDER', 'MESH_CONE', 'MESH_TORUS', 'MESH_PLANE',
+    # object types
+    'ARMATURE_DATA', 'CAMERA_DATA', 'LIGHT', 'CURVE_DATA',
+    'FONT_DATA', 'LATTICE_DATA', 'EMPTY_DATA', 'SPEAKER', 'META_DATA',
+    # modifiers / tools
+    'MODIFIER', 'PARTICLES', 'PHYSICS', 'CONSTRAINT',
+    'SHADERFX', 'BRUSH_DATA', 'GREASEPENCIL', 'TOOL_SETTINGS',
+    # shading / scene
+    'MATERIAL', 'TEXTURE', 'NODE', 'SCENE_DATA',
+    'WORLD_DATA', 'OBJECT_DATA', 'RENDER_STILL', 'IMAGE_DATA',
+    # utility
+    'BOOKMARKS', 'PRESET', 'KEYFRAME', 'MARKER', 'UV', 'OUTLINER_COLLECTION',
+)
+
+
 def _has_active_tab(context):
     prefs = model.get_prefs(context)
     return 0 <= prefs.active < len(prefs.tabs)
@@ -254,6 +273,55 @@ class NM_OT_assign_group(Operator):
         prefs = model.get_prefs(context)
         prefs.tabs[prefs.active].group = self.name   # update cb -> engine
         store.save(model.serialize(prefs))
+        return {'FINISHED'}
+
+
+# --- icon picker ----------------------------------------------------------
+
+class NM_OT_pick_icon(Operator):
+    bl_idname = "nm.pick_icon"
+    bl_label = "Pick Icon"
+    bl_description = "Choose an icon for this item"
+    bl_options = {'INTERNAL'}
+    target: StringProperty()  # "tab" or "group"
+    index: IntProperty()
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=300)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Choose Icon:")
+        flow = layout.grid_flow(row_major=True, columns=9, even_columns=True,
+                                even_rows=True, align=True)
+        for ic in AVAILABLE_ICONS:
+            display = ic if ic != 'NONE' else 'BLANK1'
+            op = flow.operator("nm.set_icon", text="", icon=display,
+                               emboss=(ic != 'NONE'))
+            op.target = self.target
+            op.index = self.index
+            op.icon_id = ic
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+
+class NM_OT_set_icon(Operator):
+    bl_idname = "nm.set_icon"
+    bl_label = "Set Icon"
+    bl_options = {'INTERNAL'}
+    target: StringProperty()
+    index: IntProperty()
+    icon_id: StringProperty()
+
+    def execute(self, context):
+        prefs = model.get_prefs(context)
+        if self.target == "tab" and 0 <= self.index < len(prefs.tabs):
+            prefs.tabs[self.index].icon = self.icon_id
+            store.save(model.serialize(prefs))
+        elif self.target == "group" and 0 <= self.index < len(prefs.groups):
+            prefs.groups[self.index].icon = self.icon_id
+            store.save(model.serialize(prefs))
         return {'FINISHED'}
 
 

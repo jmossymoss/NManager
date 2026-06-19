@@ -39,17 +39,19 @@ class NM_TabEntry(bpy.types.PropertyGroup):
     order: IntProperty()
     hidden: BoolProperty(name="Hidden", update=_refresh_live)   # live
     group: StringProperty(name="Group", update=_refresh_live)   # live
+    icon: StringProperty(name="Icon", default='NONE')
 
 
 class NM_Group(bpy.types.PropertyGroup):
     name: StringProperty(name="Name")
+    icon: StringProperty(name="Icon", default='NONE')
 
 
 # --- collection <-> list (for engine.apply) ------------------------------
 
 def entries_to_list(coll):
     return [{"home": e.home, "name": e.name or e.home, "order": e.order,
-             "hidden": e.hidden, "group": e.group} for e in coll]
+             "hidden": e.hidden, "group": e.group, "icon": e.icon} for e in coll]
 
 
 def sync_collection(coll):
@@ -74,7 +76,7 @@ def serialize(prefs):
     return {
         "version": 1,
         "active_group": prefs.active_group,
-        "groups": [g.name for g in prefs.groups],
+        "groups": [{"name": g.name, "icon": g.icon} for g in prefs.groups],
         "tabs": entries_to_list(prefs.tabs),
     }
 
@@ -86,8 +88,13 @@ def deserialize(prefs, data):
     _suspend = True
     try:
         prefs.groups.clear()
-        for gn in data.get("groups", []):
-            prefs.groups.add().name = gn
+        for gdata in data.get("groups", []):
+            g = prefs.groups.add()
+            if isinstance(gdata, str):  # backward compat: plain name list
+                g.name = gdata
+            else:
+                g.name = gdata.get("name", "")
+                g.icon = gdata.get("icon", 'NONE')
         prefs.tabs.clear()
         for d in data.get("tabs", []):
             e = prefs.tabs.add()
@@ -96,6 +103,7 @@ def deserialize(prefs, data):
             e.order = d.get("order", 0)
             e.hidden = d.get("hidden", False)
             e.group = d.get("group", "")
+            e.icon = d.get("icon", 'NONE')
         prefs.active_group = data.get("active_group", "")
     finally:
         _suspend = False
