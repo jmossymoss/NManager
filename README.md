@@ -19,9 +19,15 @@ into named groups and show only what you need for the task at hand.
 - **Rename** any sidebar tab.
 - **Reorder** tabs, and reorder within a group.
 - **Hide** tabs you never use.
+- **Icons** — assign a unicode shape symbol to any tab or group. The symbol
+  appears as a suffix directly in the N-panel sidebar tab label (e.g.
+  `Modelling ●`). 24 symbols available across three categories: Filled,
+  Outline, and Special.
 - **Groups** — assign tabs to named groups and switch the active group from the
   top-right of the viewport header. The sidebar then shows only that group's
   tabs.
+- **Always-visible tabs** — Tool, View, and Item are pinned and always shown
+  regardless of the active group.
 - **Per-group ordering** — reorder a group's tabs independently.
 - **Import / export** your layout as JSON, and automatic persistence between
   sessions.
@@ -35,7 +41,7 @@ switcher.
 
 ## Installation
 
-1. Download the latest release `.zip` (or zip the `nmanager/` folder yourself).
+1. Download the latest release `.zip` (or zip the `NManager/` folder yourself).
 2. In Blender: **Edit > Preferences > Get Extensions > Install from Disk…**
    (or simply drag the `.zip` into the Blender window).
 3. Enable **NManager** if it isn't already.
@@ -48,15 +54,34 @@ switcher.
 
 - **Tabs** (left): click a row to select it, then use the up/down buttons to
   reorder or the pencil to rename. Toggle the eye to hide a tab, and use the
-  group field to assign it to a group.
+  group field to assign it to a group. Click the symbol button at the start of
+  a row to pick an icon that will appear as a suffix in the sidebar tab label.
 - **Groups** (right): create, rename, reorder, and remove groups. The radio
-  button activates a group.
+  button activates a group. Click the symbol button next to a group to pick an
+  icon for it — the icon appears in the group switcher menu and viewport header.
 - **Apply** commits names and order; **Reset** restores the original sidebar.
 - Tick **Limit list to active group** to focus the list on one group and
   reorder within it.
+- The preferences list scales vertically with the window — resize it and the
+  tab/group lists grow to fill the available space.
 
 **Switch groups:** use the **group menu at the top-right of the viewport
 header**. Pick *All Tabs* to show everything, or a group to show only its tabs.
+
+### Icon picker
+
+Click the small symbol button (shows `·` when no icon is set) at the left of
+any tab or group row to open the picker. Icons are grouped into:
+
+| Group   | Symbols |
+|---------|---------|
+| Filled  | ● ■ ▲ ▼ ◆ ★ ▶ ◀ |
+| Outline | ○ □ △ ▽ ◇ ☆ ▷ ◁ |
+| Special | ◉ ◎ ◈ ◐ ♦ ♣ ♠ ♥ |
+
+> **Note:** Blender sidebar tab labels are plain text, so icons are unicode
+> characters and render in the theme's text colour. Colour icons are not
+> possible.
 
 ---
 
