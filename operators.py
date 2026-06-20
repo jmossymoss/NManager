@@ -275,14 +275,21 @@ class NM_OT_pick_icon(Operator):
     def draw(self, context):
         layout = self.layout
         layout.label(text="Choose Icon:")
-        col = layout.column(align=True)
-        for sym, bi, label in model.ICON_OPTIONS:
-            row = col.row(align=True)
-            op = row.operator("nm.set_icon", text=label or "None", icon=bi,
-                              emboss=bool(sym))
-            op.target = self.target
-            op.index = self.index
-            op.icon_id = sym
+        op = layout.operator("nm.set_icon", text="None  (clear)", icon='X')
+        op.target = self.target
+        op.index = self.index
+        op.icon_id = ""
+        for group_name, opts in model.ICON_GROUPS:
+            layout.separator()
+            layout.label(text=group_name + ":")
+            flow = layout.grid_flow(row_major=True, columns=4,
+                                    even_columns=True, even_rows=True,
+                                    align=True)
+            for sym, label in opts:
+                op = flow.operator("nm.set_icon", text=sym)
+                op.target = self.target
+                op.index = self.index
+                op.icon_id = sym
 
     def execute(self, context):
         return {'FINISHED'}

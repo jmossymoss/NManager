@@ -15,16 +15,14 @@ class NM_UL_tabs(bpy.types.UIList):
                   active_data, active_prop, index):
         prefs = data
         row = layout.row(align=True)
-        op = row.operator("nm.pick_icon", text="",
-                          icon=model.icon_to_blender(item.icon), emboss=False)
+        op = row.operator("nm.pick_icon", text=item.icon or "·", emboss=False)
         op.target = "tab"
         op.index = index
         row.prop(item, "hidden", text="",
                  icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
         sub = row.row(align=True)
         sub.active = not item.hidden
-        base = item.name or item.home
-        sub.label(text=f"{base} {item.icon}".rstrip() if item.icon else base)
+        sub.label(text=item.name or item.home)
         row.prop_search(item, "group", prefs, "groups", text="",
                         icon='OUTLINER_COLLECTION')
         row.label(text="",
@@ -58,8 +56,7 @@ class NM_UL_groups(bpy.types.UIList):
                           icon='RADIOBUT_ON' if is_active else 'RADIOBUT_OFF',
                           emboss=False)
         op.name = item.name
-        op2 = row.operator("nm.pick_icon", text="",
-                            icon=model.icon_to_blender(item.icon), emboss=False)
+        op2 = row.operator("nm.pick_icon", text=item.icon or "·", emboss=False)
         op2.target = "group"
         op2.index = index
         row.label(text=item.name or "(unnamed)")
@@ -83,10 +80,9 @@ class NM_MT_group_menu(bpy.types.Menu):
         if len(prefs.groups):
             layout.separator()
         for g in prefs.groups:
-            bi = model.icon_to_blender(g.icon)
-            ic = bi if g.icon else ('CHECKMARK' if cur == g.name else 'BLANK1')
-            op = layout.operator("nm.set_active_group",
-                                 text=g.name or "(unnamed)", icon=ic)
+            label = f"{g.icon}  {g.name or '(unnamed)'}" if g.icon else (g.name or "(unnamed)")
+            ic = 'CHECKMARK' if cur == g.name else 'BLANK1'
+            op = layout.operator("nm.set_active_group", text=label, icon=ic)
             op.name = g.name
 
         layout.separator()
@@ -181,11 +177,11 @@ def draw_header(self, context):
         return
     prefs = model.get_prefs(context)
     layout = self.layout
-    label = prefs.active_group or "All Tabs"
     group_obj = next((g for g in prefs.groups if g.name == prefs.active_group), None)
-    icon = (model.icon_to_blender(group_obj.icon)
-            if group_obj and group_obj.icon else 'OUTLINER_COLLECTION')
+    label = prefs.active_group or "All Tabs"
+    if group_obj and group_obj.icon:
+        label = f"{group_obj.icon}  {label}"
     layout.separator_spacer()
     row = layout.row(align=True)
-    row.ui_units_x = min(12.0, max(4.0, len(label) * 0.55 + 2.0))
-    row.menu("NM_MT_group_menu", text=label, icon=icon)
+    row.ui_units_x = min(14.0, max(4.0, len(label) * 0.55 + 2.0))
+    row.menu("NM_MT_group_menu", text=label, icon='OUTLINER_COLLECTION')

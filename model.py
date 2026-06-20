@@ -10,35 +10,38 @@ ADDON_ID = __package__
 # Suspend live update callbacks during bulk loads.
 _suspend = False
 
-# Each entry: (unicode_suffix, blender_icon_id, label)
-# The unicode suffix is stored on the property and appended to bl_category so
-# it appears directly in the N-panel sidebar tab label.
-ICON_OPTIONS = (
-    ("",  'BLANK1',        "None"),
-    ("●", 'MESH_UVSPHERE', "Dot"),
-    ("○", 'MESH_CIRCLE',   "Circle"),
-    ("■", 'MESH_CUBE',     "Square"),
-    ("□", 'MESH_PLANE',    "Square (outline)"),
-    ("▲", 'MESH_CONE',     "Triangle"),
-    ("△", 'MESH_ICOSPHERE',"Triangle (outline)"),
-    ("◆", 'KEYFRAME_HLT',  "Diamond"),
-    ("◇", 'KEYFRAME',      "Diamond (outline)"),
-    ("★", 'MODIFIER',      "Star"),
-    ("☆", 'LATTICE_DATA',  "Star (outline)"),
-    ("▶", 'TRIA_RIGHT',    "Arrow"),
+# Grouped unicode shape symbols used as N-panel tab suffixes.
+# The picker shows the actual characters so what you pick is what appears in
+# the sidebar. Colors are not possible — bl_category is plain text.
+ICON_GROUPS = (
+    ("Filled", (
+        ("●", "Circle"),    ("■", "Square"),
+        ("▲", "Triangle"),  ("▼", "Triangle"),
+        ("◆", "Diamond"),   ("★", "Star"),
+        ("▶", "Arrow"),     ("◀", "Arrow"),
+    )),
+    ("Outline", (
+        ("○", "Circle"),    ("□", "Square"),
+        ("△", "Triangle"),  ("▽", "Triangle"),
+        ("◇", "Diamond"),   ("☆", "Star"),
+        ("▷", "Arrow"),     ("◁", "Arrow"),
+    )),
+    ("Special", (
+        ("◉", "Fisheye"),   ("◎", "Bullseye"),
+        ("◈", "Diamond+"),  ("◐", "Half-circle"),
+        ("♦", "Diamond"),   ("♣", "Club"),
+        ("♠", "Spade"),     ("♥", "Heart"),
+    )),
 )
 
-_VALID_SYMS = {sym for sym, _, _ in ICON_OPTIONS if sym}
-_ICON_LOOKUP = {sym: bi for sym, bi, _ in ICON_OPTIONS}
-
-
-def icon_to_blender(sym):
-    """Return the Blender icon ID for a unicode symbol, for use in layout calls."""
-    return _ICON_LOOKUP.get(sym, 'BLANK1')
+# Flat list and validity set derived from the groups above
+ICON_OPTIONS = tuple(opt for _, opts in ICON_GROUPS for opt in opts)
+_VALID_SYMS = {sym for sym, _ in ICON_OPTIONS}
 
 
 def _clean_icon(raw):
-    """Normalise a stored icon value; discard legacy Blender icon-ID strings."""
+    """Return raw if it is a known symbol, otherwise empty string.
+    Discards legacy Blender icon-ID strings from earlier save files."""
     return raw if raw in _VALID_SYMS else ""
 
 
