@@ -23,7 +23,7 @@ import bpy
 
 SPACE = 'VIEW_3D'
 REGION = 'UI'
-PROTECTED = {"Tool", "Item"}
+PROTECTED = {"Tool", "Item", "View"}  # always visible in every group
 HOME_ATTR = "_nm_home"
 ORIG_ATTR = "_nm_orig_poll"
 
@@ -179,7 +179,7 @@ def _visible(cls):
     home = home_of(cls)
     if home in _hidden:
         return False
-    if _active_group and _group_of.get(home, "") != _active_group:
+    if _active_group and home not in PROTECTED and _group_of.get(home, "") != _active_group:
         return False
     return True
 
