@@ -15,16 +15,16 @@ class NM_UL_tabs(bpy.types.UIList):
                   active_data, active_prop, index):
         prefs = data
         row = layout.row(align=True)
-        ic = item.icon if item.icon and item.icon != 'NONE' else 'BLANK1'
-        op = row.operator("nm.pick_icon", text="", icon=ic, emboss=False)
+        op = row.operator("nm.pick_icon", text="",
+                          icon=model.icon_to_blender(item.icon), emboss=False)
         op.target = "tab"
         op.index = index
         row.prop(item, "hidden", text="",
                  icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
         sub = row.row(align=True)
         sub.active = not item.hidden
-        sub.label(text=item.name or item.home,
-                  icon=item.icon if item.icon and item.icon != 'NONE' else 'NONE')
+        base = item.name or item.home
+        sub.label(text=f"{base} {item.icon}".rstrip() if item.icon else base)
         row.prop_search(item, "group", prefs, "groups", text="",
                         icon='OUTLINER_COLLECTION')
         row.label(text="",
@@ -58,8 +58,8 @@ class NM_UL_groups(bpy.types.UIList):
                           icon='RADIOBUT_ON' if is_active else 'RADIOBUT_OFF',
                           emboss=False)
         op.name = item.name
-        ic = item.icon if item.icon and item.icon != 'NONE' else 'BLANK1'
-        op2 = row.operator("nm.pick_icon", text="", icon=ic, emboss=False)
+        op2 = row.operator("nm.pick_icon", text="",
+                            icon=model.icon_to_blender(item.icon), emboss=False)
         op2.target = "group"
         op2.index = index
         row.label(text=item.name or "(unnamed)")
@@ -83,10 +83,8 @@ class NM_MT_group_menu(bpy.types.Menu):
         if len(prefs.groups):
             layout.separator()
         for g in prefs.groups:
-            if g.icon and g.icon != 'NONE':
-                ic = g.icon
-            else:
-                ic = 'CHECKMARK' if cur == g.name else 'BLANK1'
+            bi = model.icon_to_blender(g.icon)
+            ic = bi if g.icon else ('CHECKMARK' if cur == g.name else 'BLANK1')
             op = layout.operator("nm.set_active_group",
                                  text=g.name or "(unnamed)", icon=ic)
             op.name = g.name
@@ -117,6 +115,15 @@ class NM_Prefs(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
 
+        # Scale list height with the preferences window. The constant accounts
+        # for the addon info block Blender draws above our draw() plus our own
+        # fixed rows (menu, labels, apply, IO, info label).
+        try:
+            ui_scale = context.preferences.system.ui_scale
+            rows = max(3, int((context.area.height - 300 * ui_scale) / (22 * ui_scale)))
+        except Exception:
+            rows = 14
+
         row = layout.row(align=True)
         row.menu("NM_MT_group_menu",
                  text=self.active_group or "All Tabs",
@@ -133,7 +140,7 @@ class NM_Prefs(bpy.types.AddonPreferences):
         col.label(text="Tabs", icon='WINDOW')
         trow = col.row()
         trow.template_list("NM_UL_tabs", "", self, "tabs",
-                           self, "active", rows=14)
+                           self, "active", rows=rows)
         tcol = trow.column(align=True)
         tcol.operator("nm.move", text="", icon='TRIA_UP').direction = -1
         tcol.operator("nm.move", text="", icon='TRIA_DOWN').direction = 1
@@ -148,7 +155,7 @@ class NM_Prefs(bpy.types.AddonPreferences):
         gcol.label(text="Groups", icon='OUTLINER_COLLECTION')
         grow = gcol.row()
         grow.template_list("NM_UL_groups", "", self, "groups",
-                           self, "active_group_index", rows=14)
+                           self, "active_group_index", rows=rows)
         gccol = grow.column(align=True)
         gccol.operator("nm.group_move", text="", icon='TRIA_UP').direction = -1
         gccol.operator("nm.group_move", text="", icon='TRIA_DOWN').direction = 1
@@ -176,8 +183,8 @@ def draw_header(self, context):
     layout = self.layout
     label = prefs.active_group or "All Tabs"
     group_obj = next((g for g in prefs.groups if g.name == prefs.active_group), None)
-    icon = (group_obj.icon if group_obj and group_obj.icon and group_obj.icon != 'NONE'
-            else 'OUTLINER_COLLECTION')
+    icon = (model.icon_to_blender(group_obj.icon)
+            if group_obj and group_obj.icon else 'OUTLINER_COLLECTION')
     layout.separator_spacer()
     row = layout.row(align=True)
     row.ui_units_x = min(12.0, max(4.0, len(label) * 0.55 + 2.0))

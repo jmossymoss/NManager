@@ -8,23 +8,6 @@ from bpy_extras.io_utils import ExportHelper, ImportHelper
 from . import engine, model, store
 
 
-AVAILABLE_ICONS = (
-    'NONE',
-    # mesh primitives
-    'MESH_CUBE', 'MESH_UVSPHERE', 'MESH_ICOSPHERE', 'MESH_CIRCLE',
-    'MESH_CYLINDER', 'MESH_CONE', 'MESH_TORUS', 'MESH_PLANE',
-    # object types
-    'ARMATURE_DATA', 'CAMERA_DATA', 'LIGHT', 'CURVE_DATA',
-    'FONT_DATA', 'LATTICE_DATA', 'EMPTY_DATA', 'SPEAKER', 'META_DATA',
-    # modifiers / tools
-    'MODIFIER', 'PARTICLES', 'PHYSICS', 'CONSTRAINT',
-    'SHADERFX', 'BRUSH_DATA', 'GREASEPENCIL', 'TOOL_SETTINGS',
-    # shading / scene
-    'MATERIAL', 'TEXTURE', 'NODE', 'SCENE_DATA',
-    'WORLD_DATA', 'OBJECT_DATA', 'RENDER_STILL', 'IMAGE_DATA',
-    # utility
-    'BOOKMARKS', 'PRESET', 'KEYFRAME', 'MARKER', 'UV', 'OUTLINER_COLLECTION',
-)
 
 
 def _has_active_tab(context):
@@ -292,15 +275,14 @@ class NM_OT_pick_icon(Operator):
     def draw(self, context):
         layout = self.layout
         layout.label(text="Choose Icon:")
-        flow = layout.grid_flow(row_major=True, columns=9, even_columns=True,
-                                even_rows=True, align=True)
-        for ic in AVAILABLE_ICONS:
-            display = ic if ic != 'NONE' else 'BLANK1'
-            op = flow.operator("nm.set_icon", text="", icon=display,
-                               emboss=(ic != 'NONE'))
+        col = layout.column(align=True)
+        for sym, bi, label in model.ICON_OPTIONS:
+            row = col.row(align=True)
+            op = row.operator("nm.set_icon", text=label or "None", icon=bi,
+                              emboss=bool(sym))
             op.target = self.target
             op.index = self.index
-            op.icon_id = ic
+            op.icon_id = sym
 
     def execute(self, context):
         return {'FINISHED'}
@@ -318,7 +300,7 @@ class NM_OT_set_icon(Operator):
         prefs = model.get_prefs(context)
         if self.target == "tab" and 0 <= self.index < len(prefs.tabs):
             prefs.tabs[self.index].icon = self.icon_id
-            store.save(model.serialize(prefs))
+            _apply_and_save(context)
         elif self.target == "group" and 0 <= self.index < len(prefs.groups):
             prefs.groups[self.index].icon = self.icon_id
             store.save(model.serialize(prefs))

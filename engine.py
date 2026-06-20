@@ -293,7 +293,12 @@ def set_active_group(name):
 def apply(entries, reorder=False):
     groups = scan()
     index = {e["home"]: e for e in entries}
-    targets = {home: (index.get(home, {}).get("name") or home) for home in groups}
+    targets = {}
+    for home in groups:
+        entry = index.get(home, {})
+        name = entry.get("name") or home
+        suffix = entry.get("icon", "")
+        targets[home] = f"{name} {suffix}" if suffix else name
 
     global _hidden, _group_of
     _hidden = {e["home"] for e in entries if e.get("hidden")}
