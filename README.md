@@ -22,7 +22,7 @@ into named groups and show only what you need for the task at hand.
 - **Icons** — assign a unicode shape symbol to any tab or group. The symbol
   appears as a suffix directly in the N-panel sidebar tab label (e.g.
   `Modelling ●`). 24 symbols available across three categories: Filled,
-  Outline, and Special.
+  Outline, and Compound.
 - **Groups** — assign tabs to named groups and switch the active group from the
   top-right of the viewport header. The sidebar then shows only that group's
   tabs.
@@ -112,11 +112,6 @@ something, and **Reset** always restores the original sidebar.
 - Drag-and-drop tab reordering isn't supported by Blender's UI API; use the
   up/down buttons.
 
----
-## Known Bugs
-
-- Icon suffixies mostly work but some will cause blender to hard crash,
-  so avoid for now untill adressed.
 ---
 
 ## Compatibility note
