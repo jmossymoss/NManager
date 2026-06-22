@@ -113,6 +113,11 @@ something, and **Reset** always restores the original sidebar.
   up/down buttons.
 
 ---
+## Known Bugs
+
+- Icon suffixies mostly work but some will cause blender to hard crash,
+  so avoid for now untill adressed.
+---
 
 ## Compatibility note
 
