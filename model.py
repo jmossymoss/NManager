@@ -17,20 +17,20 @@ ICON_GROUPS = (
     ("Filled", (
         ("●", "Circle"),    ("■", "Square"),
         ("▲", "Triangle"),  ("▼", "Triangle"),
-        ("◆", "Diamond"),   ("★", "Star"),
-        ("▶", "Arrow"),     ("◀", "Arrow"),
+        ("◆", "Diamond"),   ("▶", "Arrow right"),
+        ("◀", "Arrow left"), ("◉", "Fisheye"),
     )),
     ("Outline", (
         ("○", "Circle"),    ("□", "Square"),
         ("△", "Triangle"),  ("▽", "Triangle"),
-        ("◇", "Diamond"),   ("☆", "Star"),
-        ("▷", "Arrow"),     ("◁", "Arrow"),
+        ("◇", "Diamond"),   ("▷", "Arrow right"),
+        ("◁", "Arrow left"), ("◎", "Bullseye"),
     )),
-    ("Special", (
-        ("◉", "Fisheye"),   ("◎", "Bullseye"),
-        ("◈", "Diamond+"),  ("◐", "Half-circle"),
-        ("♦", "Diamond"),   ("♣", "Club"),
-        ("♠", "Spade"),     ("♥", "Heart"),
+    ("Compound", (
+        ("◈", "Diamond+"),  ("◊", "Lozenge"),
+        ("◐", "Half left"), ("◑", "Half right"),
+        ("◤", "Corner TL"), ("◥", "Corner TR"),
+        ("◢", "Corner BR"), ("◣", "Corner BL"),
     )),
 )
 

@@ -73,11 +73,11 @@ header**. Pick *All Tabs* to show everything, or a group to show only its tabs.
 Click the small symbol button (shows `·` when no icon is set) at the left of
 any tab or group row to open the picker. Icons are grouped into:
 
-| Group   | Symbols |
-|---------|---------|
-| Filled  | ● ■ ▲ ▼ ◆ ★ ▶ ◀ |
-| Outline | ○ □ △ ▽ ◇ ☆ ▷ ◁ |
-| Special | ◉ ◎ ◈ ◐ ♦ ♣ ♠ ♥ |
+| Group    | Symbols |
+|----------|---------|
+| Filled   | ● ■ ▲ ▼ ◆ ▶ ◀ ◉ |
+| Outline  | ○ □ △ ▽ ◇ ▷ ◁ ◎ |
+| Compound | ◈ ◊ ◐ ◑ ◤ ◥ ◢ ◣ |
 
 > **Note:** Blender sidebar tab labels are plain text, so icons are unicode
 > characters and render in the theme's text colour. Colour icons are not
